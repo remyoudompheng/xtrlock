@@ -19,11 +19,10 @@
 
 /*------------------------------------------------------------------*\
   \*------------------------------------------------------------------*/
-#include <X11/X.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
 #include <X11/keysym.h>
-#include <X11/Xos.h>
+#include <xcb/xcb.h>
+#include <xcb/xproto.h>
+#include <xcb/xcb_keysyms.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -59,8 +58,9 @@
 #define INITIALGOODWILL MAXGOODWILL
 #define GOODWILLPORTION 0.3
 
-Display *display;
-Window window, root;
+xcb_connection_t *display;
+xcb_window_t window, root;
+xcb_generic_error_t *xerr;
 struct passwd *pw;
 
 
@@ -164,17 +164,14 @@ int passwordok(const char *s) {
   return 1;
 }
 
+#define BUFSIZE 128
+
 int main(int argc, char **argv){
-  XEvent ev;
-  KeySym ks;
-  char cbuf[10], rbuf[128]; /* shadow appears to suggest 127 a good value here */
-  int clen, rlen=0;
+  char rbuf[BUFSIZE]; /* shadow appears to suggest 127 a good value here */
+  int rlen=0;
   long goodwill= INITIALGOODWILL, timeout= 0;
-  XSetWindowAttributes attrib;
-  Cursor cursor;
-  Pixmap csr_source,csr_mask;
-  XColor csr_fg, csr_bg, dummy;
-  int ret;
+  xcb_cursor_t cursor;
+  xcb_pixmap_t csr_source,csr_mask;
 
   if (argc != 1) {
     fprintf(stderr, "xtrlock (version " PROGRAM_VERSION
@@ -189,15 +186,7 @@ int main(int argc, char **argv){
     exit(1);
   }
 
-  /* logically, if we need to do the following then the same
-     applies to being installed setgid shadow.
-     we do this first, because of a bug in linux. --jdamery */
-  setgid(getgid());
-  /* we can be installed setuid root to support shadow passwords,
-     and we don't need root privileges any longer.  --marekm */
-  setuid(getuid());
-
-  display= XOpenDisplay(0);
+  display = xcb_connect(NULL,0);
 
   if (display==NULL) {
     fprintf(stderr,"xtrlock (version " PROGRAM_VERSION
@@ -205,95 +194,132 @@ int main(int argc, char **argv){
     exit(1);
   }
 
-  attrib.override_redirect= True;
-  window= XCreateWindow(display,DefaultRootWindow(display),
-			0,0,1,1,0,CopyFromParent,InputOnly,CopyFromParent,
-			CWOverrideRedirect,&attrib);
+  xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(display)).data;
+  uint32_t attrib = 1;
+  window = xcb_generate_id(display);
+  xcb_create_window(display, XCB_COPY_FROM_PARENT, window, screen->root,
+		    0, 0, 1, 1, 0,
+		    XCB_WINDOW_CLASS_INPUT_ONLY, XCB_COPY_FROM_PARENT,
+		    XCB_CW_OVERRIDE_REDIRECT, &attrib);
 
-  XSelectInput(display,window,KeyPressMask|KeyReleaseMask);
+  uint32_t mask = XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE;
+  xcb_change_window_attributes(display, window, XCB_CW_EVENT_MASK, &mask);
 
-  csr_source= XCreateBitmapFromData(display,window,lock_bits,lock_width,lock_height);
-  csr_mask= XCreateBitmapFromData(display,window,mask_bits,mask_width,mask_height);
+  // Cursor creation
+  xcb_gcontext_t gc = xcb_generate_id(display);
+  csr_source = xcb_generate_id(display);
+  csr_mask = xcb_generate_id(display);
+  xcb_create_gc(display, gc, root, 0, NULL);
+  xcb_create_pixmap(display, 1, csr_source, window, lock_width, lock_height);
+  xcb_create_pixmap(display, 1, csr_mask, window, mask_width, mask_height);
+  xcb_put_image(display, XCB_IMAGE_FORMAT_XY_BITMAP, window, gc,
+		lock_width, lock_height, 0, 0, 0, 8,
+		lock_width*lock_height, lock_bits);
+  xcb_put_image(display, XCB_IMAGE_FORMAT_XY_BITMAP, window, gc,
+		mask_width, mask_height, 0, 0, 0, 8,
+		mask_width*mask_height, mask_bits);
 
-  ret = XAllocNamedColor(display,
-			 DefaultColormap(display, DefaultScreen(display)),
-			 "steelblue3",
-			 &dummy, &csr_bg);
-  if (ret==0)
-    XAllocNamedColor(display,
-		     DefaultColormap(display, DefaultScreen(display)),
-		     "black",
-		     &dummy, &csr_bg);
+  xcb_alloc_named_color_cookie_t cookie;
+  xcb_alloc_named_color_reply_t *csr_fg, *csr_bg;
+  cookie = xcb_alloc_named_color(display, screen->default_colormap,
+				 strlen("steelblue3"), "steelblue3");
+  csr_bg = xcb_alloc_named_color_reply(display, cookie, &xerr);
 
-  ret = XAllocNamedColor(display,
-			 DefaultColormap(display,DefaultScreen(display)),
-			 "grey25",
-			 &dummy, &csr_fg);
-  if (ret==0)
-    XAllocNamedColor(display,
-		     DefaultColormap(display, DefaultScreen(display)),
-		     "white",
-		     &dummy, &csr_bg);
-
-
-
-  cursor= XCreatePixmapCursor(display,csr_source,csr_mask,&csr_fg,&csr_bg,
-			      lock_x_hot,lock_y_hot);
-
-  XMapWindow(display,window);
-  if (XGrabKeyboard(display,window,False,GrabModeAsync,GrabModeAsync,
-		    CurrentTime)!=GrabSuccess) {
-    exit(1);
-  }
-  if (XGrabPointer(display,window,False,(KeyPressMask|KeyReleaseMask)&0,
-		   GrabModeAsync,GrabModeAsync,None,
-		   cursor,CurrentTime)!=GrabSuccess) {
-    XUngrabKeyboard(display,CurrentTime);
-    exit(1);
+  if(xerr || (!csr_bg)) {
+    cookie = xcb_alloc_named_color(display, screen->default_colormap,
+				   strlen("black"), "black");
+    csr_bg = xcb_alloc_named_color_reply(display, cookie, &xerr);
   }
 
-  for (;;) {
-    XNextEvent(display,&ev);
-    switch (ev.type) {
-    case KeyPress:
-      if (ev.xkey.time < timeout) { XBell(display,0); break; }
-      clen= XLookupString(&ev.xkey,cbuf,9,&ks,0);
+  cookie = xcb_alloc_named_color(display, screen->default_colormap,
+				 strlen("gray25"), "gray25");
+  csr_fg = xcb_alloc_named_color_reply(display, cookie, &xerr);
+
+  if(xerr || (!csr_fg)) {
+    cookie = xcb_alloc_named_color(display, screen->default_colormap,
+				   strlen("white"), "white");
+    csr_fg = xcb_alloc_named_color_reply(display, cookie, &xerr);
+  }
+
+  cursor = xcb_generate_id(display);
+  xcb_create_cursor(display, cursor, csr_source, csr_mask,
+		    csr_fg->exact_red, csr_fg->exact_green, csr_fg->exact_blue,
+		    csr_bg->exact_red, csr_bg->exact_green, csr_bg->exact_blue,
+		    lock_x_hot, lock_y_hot);
+
+  
+  xcb_map_window(display, window);
+
+  // Grab keyboard and pointer
+  xcb_grab_keyboard_cookie_t cookie_gk;
+  xcb_grab_keyboard_reply_t *reply_gk;
+  xcb_grab_pointer_cookie_t cookie_gp;
+  xcb_grab_pointer_reply_t *reply_gp;
+  cookie_gk = xcb_grab_keyboard(display, 0, window, XCB_CURRENT_TIME,
+				XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+  cookie_gp = xcb_grab_pointer(display, 0, window, 0, // (KeyPressMask|KeyReleaseMask)&0
+			       XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+			       XCB_WINDOW_NONE, cursor, XCB_CURRENT_TIME);
+  reply_gk = xcb_grab_keyboard_reply(display, cookie_gk, &xerr);
+  if (xerr || reply_gk->status != XCB_GRAB_STATUS_SUCCESS)
+    exit(1);
+  reply_gp = xcb_grab_pointer_reply(display, cookie_gp, &xerr);
+  if (xerr || reply_gp->status != XCB_GRAB_STATUS_SUCCESS) {
+    xcb_ungrab_keyboard(display, XCB_CURRENT_TIME);
+    exit(1);
+  }
+
+  // Event loop
+  xcb_generic_event_t *e;
+  xcb_key_press_event_t *ev;
+  xcb_key_symbols_t *keysyms = xcb_key_symbols_alloc(display);
+  xcb_keysym_t ks;
+  int looping = 1;
+
+  while(looping && (e = xcb_wait_for_event(display)))
+    {
+      if(e->response_type != XCB_KEY_PRESS)
+	continue;
+      ev = (xcb_key_press_event_t *)e;
+      ks = xcb_key_symbols_get_keysym(keysyms, ev->detail, 0);
       switch (ks) {
-      case XK_Escape: case XK_Clear:
+      case XK_Escape:
+      case XK_Clear:
 	rlen=0; break;
-      case XK_Delete: case XK_BackSpace:
-	if (rlen>0) rlen--;
-	break;
-      case XK_Linefeed: case XK_Return:
+      case XK_Delete:
+      case XK_BackSpace:
+	if (rlen>0) rlen--; break;
+      case XK_Linefeed:
+      case XK_Return:
 	if (rlen==0) break;
 	rbuf[rlen]=0;
-	if (passwordok(rbuf)) goto loop_x;
-	XBell(display,0);
-	rlen= 0;
+	if (passwordok(rbuf)) {
+	  looping = 0; break; }
+	xcb_bell(display, 0);
+	rlen = 0;
 	if (timeout) {
-	  goodwill+= ev.xkey.time - timeout;
+	  goodwill+= ev->time - timeout;
 	  if (goodwill > MAXGOODWILL) {
 	    goodwill= MAXGOODWILL;
 	  }
 	}
 	timeout= -goodwill*GOODWILLPORTION;
 	goodwill+= timeout;
-	timeout+= ev.xkey.time + TIMEOUTPERATTEMPT;
+	timeout+= ev->time + TIMEOUTPERATTEMPT;
 	break;
       default:
-	if (clen != 1) break;
+	// if (clen != 1) 
 	/* allow space for the trailing \0 */
-	if (rlen < (sizeof(rbuf) - 1)){
-	  rbuf[rlen]=cbuf[0];
+	if (rlen < (BUFSIZE - 1)){
+	  rbuf[rlen]=ks & 0xff; // would only work for latin1 keysyms
 	  rlen++;
 	}
 	break;
       }
-      break;
-    default:
-      break;
+
+      free(e);
     }
-  }
- loop_x:
+
+  xcb_disconnect(display);
   exit(0);
 }

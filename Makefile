@@ -17,7 +17,7 @@
 CC ?= gcc
 override CFLAGS += -Wall
 override LDFLAGS += -L/usr/X11R6/lib 
-override LDLIBS += -lX11 -lpam
+override LDLIBS += -lxcb-keysyms -lxcb -lpam
 
 INSTALL=install
 
