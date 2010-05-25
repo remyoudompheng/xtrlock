@@ -274,7 +274,7 @@ int main(int argc, char **argv){
       if(e->response_type != XCB_KEY_PRESS)
 	continue;
       ev = (xcb_key_press_event_t *)e;
-      ks = xcb_key_symbols_get_keysym(keysyms, ev->detail, 0);
+      ks = xcb_key_press_lookup_keysym(keysyms, ev, ev->state & XCB_MOD_MASK_SHIFT);
       switch (ks) {
       case XK_Escape:
       case XK_Clear:
@@ -301,10 +301,11 @@ int main(int argc, char **argv){
 	timeout+= ev->time + TIMEOUTPERATTEMPT;
 	break;
       default:
-	// if (clen != 1)
+	if (ks > 0x7f) break; // only consider ASCII characters.
+	if (ks < 0x20) break;
 	/* allow space for the trailing \0 */
 	if (rlen < (BUFSIZE - 1)){
-	  rbuf[rlen]=ks & 0xff; // would only work for latin1 keysyms
+	  rbuf[rlen]=ks;
 	  rlen++;
 	}
 	break;
