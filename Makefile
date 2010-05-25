@@ -39,6 +39,6 @@ install.man:
 ##########################################################
 xtrlock:	xtrlock.o
 
-xtrlock.o:	xtrlock.c lock.bitmap mask.bitmap patchlevel.h
+xtrlock.o:	xtrlock.c lock.bitmap mask.bitmap
 
 

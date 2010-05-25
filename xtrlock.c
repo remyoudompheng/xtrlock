@@ -40,6 +40,7 @@
 #include <ctype.h>
 #include <values.h>
 
+#define PROGRAM_VERSION "2.0"
 
 #include <security/pam_appl.h>
 
@@ -48,7 +49,6 @@
 
 #include "lock.bitmap"
 #include "mask.bitmap"
-#include "patchlevel.h"
 
 /*------------------------------------------------------------------*\
     globals
@@ -177,8 +177,8 @@ int main(int argc, char **argv){
   int ret;
 
   if (argc != 1) {
-        fprintf(stderr, "xtrlock (version %s): no arguments allowed\n",
-                program_version);
+        fprintf(stderr, "xtrlock (version " PROGRAM_VERSION 
+		"): no arguments allowed\n");
     exit(1);
   }
   
@@ -200,8 +200,8 @@ int main(int argc, char **argv){
   display= XOpenDisplay(0);
 
   if (display==NULL) {
-    fprintf(stderr,"xtrlock (version %s): cannot open display\n",
-	    program_version);
+    fprintf(stderr,"xtrlock (version " PROGRAM_VERSION
+	    "): cannot open display\n");
     exit(1);
   }
 
