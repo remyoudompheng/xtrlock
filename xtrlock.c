@@ -240,7 +240,7 @@ int main(int argc, char **argv){
 		    csr_bg->exact_red, csr_bg->exact_green, csr_bg->exact_blue,
 		    lock_x_hot, lock_y_hot);
 
-  
+
   xcb_map_window(display, window);
 
   // Grab keyboard and pointer
@@ -301,7 +301,7 @@ int main(int argc, char **argv){
 	timeout+= ev->time + TIMEOUTPERATTEMPT;
 	break;
       default:
-	// if (clen != 1) 
+	// if (clen != 1)
 	/* allow space for the trailing \0 */
 	if (rlen < (BUFSIZE - 1)){
 	  rbuf[rlen]=ks & 0xff; // would only work for latin1 keysyms
