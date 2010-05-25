@@ -40,14 +40,8 @@
 #include <ctype.h>
 #include <values.h>
 
-#ifdef SHADOW_PWD
-#include <shadow.h>
-#endif /* SHADOW_PWD */
 
-#ifdef PAM_PWD
 #include <security/pam_appl.h>
-/* #include <security/pam_misc.h> */
-#endif /* PAM_PWD */
 
 /*----------------------------------------------*\
 \*----------------------------------------------*/
