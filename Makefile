@@ -13,21 +13,11 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-PAM_LDLIBS = -lpam
-PAM_CFLAGS = -DPAM_PWD
-
-ifdef SHADOW
-SHADOW_LDLIBS =
-SHADOW_CFLAGS = -DSHADOW_PWD
-else
-SHADOW_LDLIBS =
-SHADOW_CFLAGS =
-endif
 
 CC ?= gcc
-override CFLAGS += -Wall $(PAM_CFLAGS) $(SHADOW_CFLAGS)
+override CFLAGS += -Wall
 override LDFLAGS += -L/usr/X11R6/lib 
-override LDLIBS += -lX11 -lcrypt $(PAM_LDLIBS) $(SHADOW_LDLIBS)
+override LDLIBS += -lX11 -lpam
 
 INSTALL=install
 

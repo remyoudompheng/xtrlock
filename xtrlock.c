@@ -76,7 +76,7 @@ struct passwd *pw;
     taken from pure-ftpd's authstuff, but you can see similar stuff
     in xlockmore, openssh and basicly all pam-related apps :)
 \*------------------------------------------------------------------*/
-#ifdef PAM_PWD 
+
 #define PAM_YN { \
     if (PAM_error != 0 || pam_error != PAM_SUCCESS) { \
         fprintf(stderr, "pam error: %s\n", pam_strerror(pam_handle, pam_error)); \
@@ -153,24 +153,11 @@ static int PAM_conv(int num_msg, const struct pam_message **msgs,
 static struct pam_conv PAM_conversation = {
     &PAM_conv, NULL
 };
-#endif 
+
 /*------------------------------------------------------------------*\
 \*------------------------------------------------------------------*/
 
 int passwordok(const char *s) {
-#if 0
-  char key[3];
-  char *encr;
-  
-  key[0] = *(pw->pw_passwd);
-  key[1] =  (pw->pw_passwd)[1];
-  key[2] =  0;
-  encr = crypt(s, key);
-  return !strcmp(encr, pw->pw_passwd);
-#else
-  /* simpler, and should work with crypt() algorithms using longer
-     salt strings (like the md5-based one on freebsd).  --marekm */
-#ifdef PAM_PWD
      pam_handle_t* pam_handle = NULL;
      PAM_username = pw->pw_name;
      PAM_password = s;
@@ -181,10 +168,6 @@ int passwordok(const char *s) {
      pam_error = pam_end(pam_handle, pam_error);
      PAM_YN;
      return 1;
-#else
-  return !strcmp(crypt(s, pw->pw_passwd), pw->pw_passwd);
-#endif
-#endif
 }
 
 int main(int argc, char **argv){
@@ -199,10 +182,6 @@ int main(int argc, char **argv){
   XColor csr_fg, csr_bg, dummy;
   int ret;
 
-#ifdef SHADOW_PWD
-  struct spwd *sp;
-#endif
-
   if (argc != 1) {
         fprintf(stderr, "xtrlock (version %s): no arguments allowed\n",
                 program_version);
@@ -215,12 +194,6 @@ int main(int argc, char **argv){
         perror("password entry for uid not found");
         exit(1);
     }
-#ifdef SHADOW_PWD
-  sp = getspnam(pw->pw_name);
-  if (sp)
-    pw->pw_passwd = sp->sp_pwdp;
-  endspent();
-#endif
 
   /* logically, if we need to do the following then the same 
      applies to being installed setgid shadow.  
@@ -229,11 +202,6 @@ int main(int argc, char **argv){
   /* we can be installed setuid root to support shadow passwords,
      and we don't need root privileges any longer.  --marekm */
   setuid(getuid());
-#ifndef PAM_PWD
-  if (strlen(pw->pw_passwd) < 13) {
-    fputs("password entry has no pwd\n",stderr); exit(1);
-  }
-#endif
   
   display= XOpenDisplay(0);
 
