@@ -27,17 +27,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <errno.h>
 #include <pwd.h>
-#include <grp.h>
-#include <limits.h>
-#include <string.h>
-#include <crypt.h>
 #include <unistd.h>
-#include <math.h>
-#include <ctype.h>
-#include <values.h>
+#include <string.h>
 
 #define PROGRAM_VERSION "2.0"
 
