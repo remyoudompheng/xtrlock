@@ -271,8 +271,10 @@ int main(int argc, char **argv){
 
   while(looping && (e = xcb_wait_for_event(display)))
     {
-      if(e->response_type != XCB_KEY_PRESS)
+      if(e->response_type != XCB_KEY_PRESS) {
+	free(e);
 	continue;
+      }
       ev = (xcb_key_press_event_t *)e;
       ks = xcb_key_press_lookup_keysym(keysyms, ev, ev->state & XCB_MOD_MASK_SHIFT);
       switch (ks) {
@@ -310,9 +312,16 @@ int main(int argc, char **argv){
 	}
 	break;
       }
-
-      free(e);
+      free(ev);
     }
+
+  xcb_key_symbols_free(keysyms);
+  free(csr_fg); free(csr_bg);
+  xcb_free_pixmap(display, csr_source);
+  xcb_free_pixmap(display, csr_mask);
+  xcb_free_cursor(display, cursor);
+  xcb_unmap_window(display, window);
+  xcb_destroy_window(display, window);
 
   xcb_disconnect(display);
   exit(0);
