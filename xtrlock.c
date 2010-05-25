@@ -4,6 +4,7 @@
   X Transparent Lock
 
   Copyright (C)1993,1994 Ian Jackson
+  Copyright (C)2010 Rémy Oudompheng
 
   This is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,6 +24,7 @@
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
 #include <xcb/xcb_keysyms.h>
+#include <xcb/xcb_image.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -200,17 +202,12 @@ int main(int argc, char **argv){
 
   // Cursor creation
   xcb_gcontext_t gc = xcb_generate_id(display);
-  csr_source = xcb_generate_id(display);
-  csr_mask = xcb_generate_id(display);
   xcb_create_gc(display, gc, root, 0, NULL);
-  xcb_create_pixmap(display, 1, csr_source, window, lock_width, lock_height);
-  xcb_create_pixmap(display, 1, csr_mask, window, mask_width, mask_height);
-  xcb_put_image(display, XCB_IMAGE_FORMAT_XY_BITMAP, window, gc,
-		lock_width, lock_height, 0, 0, 0, 8,
-		lock_width*lock_height, lock_bits);
-  xcb_put_image(display, XCB_IMAGE_FORMAT_XY_BITMAP, window, gc,
-		mask_width, mask_height, 0, 0, 0, 8,
-		mask_width*mask_height, mask_bits);
+
+  csr_source = xcb_create_pixmap_from_bitmap_data
+    (display, window, lock_bits, lock_width, lock_height, 1, 0, 0, &gc);
+  csr_mask = xcb_create_pixmap_from_bitmap_data
+    (display, window, mask_bits, mask_width, mask_height, 1, 0, 0, &gc);
 
   xcb_alloc_named_color_cookie_t cookie;
   xcb_alloc_named_color_reply_t *csr_fg, *csr_bg;

@@ -15,9 +15,10 @@
 
 
 CC ?= gcc
-override CFLAGS += -Wall
+#override CFLAGS += -Wall -ggdb3
+override CFLAGS += -Os -Wall -Wextra -pedantic -std=c99
 override LDFLAGS += -L/usr/X11R6/lib 
-override LDLIBS += -lxcb-keysyms -lxcb -lpam
+override LDLIBS += -lxcb-keysyms -lxcb-image -lxcb -lpam
 
 INSTALL=install
 
